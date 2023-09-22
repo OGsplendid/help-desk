@@ -1,0 +1,70 @@
+.popup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  position: absolute;
+  background-color: white;
+  width: 500px;
+  min-height: 100px;
+  border: 1px solid black;
+  border-radius: 15px;
+  top: calc(50vh - 200px);
+  left: calc(50% - 250px);
+  padding: 10px;
+  font-size: 1.1rem;
+}
+
+.popup-title {
+  font-size: 1.2rem;
+  font-weight: normal;
+  margin: 12px 0;
+}
+
+.input-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.input-section:nth-child(n+2) {
+  margin-top: 15px;
+}
+
+.input {
+  height: 35px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.input-full-description {
+  height: 60px;
+  resize: none;
+}
+
+.popup-buttons {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: 15px;
+}
+
+.popup-button {
+  height: 45px;
+  border: 1px solid black;
+  border-radius: 15px;
+  margin-left: 15px;
+  cursor: pointer;
+}
+
+.popup-cancel-button {
+  width: 120px;
+}
+
+.popup-save-button {
+  width: 70px;
+}
+
+.hidden {
+  display: none;
+}

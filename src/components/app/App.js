@@ -1,43 +1,146 @@
 import PopupCreator from '../popup-creator/PopupCreator';
+import TicketHandler from '../ticket-handler/TicketHandler';
 
 export default class App {
   constructor(parentElement) {
     this.parentElement = parentElement;
     this.wrapper = this.parentElement.querySelector('.wrapper');
+    this.ticketHandler = new TicketHandler();
     this.popupCreator = new PopupCreator(this.parentElement);
     this.addTicketBtn = this.wrapper.querySelector('.add-new-ticket');
 
-    this.showCreatePopup = this.showCreatePopup.bind(this);
-    this.showChangePopup = this.showChangePopup.bind(this);
-    this.showDeletePopup = this.showDeletePopup.bind(this);
+    this.pullTickets = this.pullTickets.bind(this);
+    this.createTicket = this.createTicket.bind(this);
+    this.updateTicket = this.updateTicket.bind(this);
+    this.deleteTicket = this.deleteTicket.bind(this);
+    this.showDetails = this.showDetails.bind(this);
+    this.toggleItemStatus = this.toggleItemStatus.bind(this);
 
-    this.wrapper.addEventListener('click', App.toggleItemStatus);
-    this.addTicketBtn.addEventListener('click', this.showCreatePopup);
-    this.wrapper.addEventListener('click', this.showChangePopup);
-    this.wrapper.addEventListener('click', this.showDeletePopup);
+    document.addEventListener('DOMContentLoaded', this.pullTickets);
+    this.wrapper.addEventListener('click', this.toggleItemStatus);
+    this.addTicketBtn.addEventListener('click', this.createTicket);
+    this.wrapper.addEventListener('click', this.updateTicket);
+    this.wrapper.addEventListener('click', this.deleteTicket);
+    this.wrapper.addEventListener('click', this.showDetails);
   }
 
-  static toggleItemStatus(e) {
+  toggleItemStatus(e) {
     if (!e.target.classList.contains('checkbox')) return;
+    const ticketID = e.target.closest('li').getAttribute('data-id');
     e.target.classList.toggle('task-done');
+    if (e.target.classList.contains('task-done')) {
+      this.handleRequest('POST', `updateById&id=${ticketID}`, ticketID, true);
+    } else {
+      this.handleRequest('POST', `updateById&id=${ticketID}`, ticketID, false);
+    }
+    this.pullTickets();
   }
 
-  showCreatePopup() {
+  async pullTickets() {
+    const tickets = this.wrapper.querySelectorAll('li');
+    tickets.forEach((item) => item.remove());
+    const reply = await this.handleRequest('GET', 'allTickets');
+    const parsedReply = JSON.parse(reply);
+    parsedReply.forEach((item) => {
+      let doneClass;
+      if (item.status) {
+        doneClass = 'task-done';
+      } else {
+        doneClass = null;
+      }
+      this.ticketHandler.add(item.id, item.name, item.created, doneClass);
+    });
+  }
+
+  async deleteTicket(e) {
+    if (!e.target.classList.contains('delete-item')) return;
+    const ticketID = e.target.closest('.list-item').getAttribute('data-id');
+    this.popupCreator.show('delete');
+    const deleteBtn = document.querySelector('.popup-save-button');
+    deleteBtn.addEventListener('click', () => this.handleRequest('GET', `deleteById&id=${ticketID}`));
+  }
+
+  async showDetails(e) {
+    if (!e.target.classList.contains('short-description-wrapper')) return;
+    const ticketID = e.target.closest('.list-item').getAttribute('data-id');
+    const data = await this.handleRequest('GET', `ticketById&id=${ticketID}`);
+    const parsedData = JSON.parse(data);
+    const shortDescription = parsedData.name;
+    const fullDescription = parsedData.description;
+    if (!fullDescription) return;
+    const li = e.target.closest('li');
+    const descriptionArea = li.querySelector('.short-description-wrapper');
+    if (li.classList.contains('full')) {
+      descriptionArea.textContent = shortDescription;
+      li.classList.toggle('full');
+      return;
+    }
+    descriptionArea.insertAdjacentHTML('beforeend', `<br><br>${fullDescription}`);
+    li.classList.toggle('full');
+  }
+
+  createTicket() {
     this.popupCreator.show('Добавить');
 
-    document.querySelector('.popup-save-button').addEventListener('click', async (e) => {
-      e.preventDefault();
+    const saveBtn = document.querySelector('.popup-save-button');
+    saveBtn.addEventListener('click', async () => {
+      await this.handleRequest('POST', 'createTicket', null);
+      this.pullTickets();
+    });
+  }
 
-      const shortDescription = document.querySelector('.input-description').value;
-      const fullDescription = document.querySelector('.input-full-description').value;
-      const obj = {
+  async updateTicket(e) {
+    if (!e.target.classList.contains('change-item')) return;
+    const li = e.target.closest('li');
+    const ticketID = li.getAttribute('data-id');
+    const data = await this.handleRequest('GET', `ticketById&id=${ticketID}`);
+    const parsedData = JSON.parse(data);
+    const shortDescription = parsedData.name;
+    const fullDescription = parsedData.description;
+    this.popupCreator.show('Изменить');
+    const saveBtn = document.querySelector('.popup-save-button');
+    this.parentElement.querySelector('.input-description').value = shortDescription;
+    this.parentElement.querySelector('.input-full-description').value = fullDescription;
+    saveBtn.addEventListener('click', async () => {
+      await this.handleRequest('POST', `updateById&id=${ticketID}`, ticketID);
+      this.pullTickets();
+    });
+  }
+
+  async handleRequest(method, ending, id, status) {
+    if (method === 'GET') {
+      try {
+        const response = await fetch(`http://localhost:7070?method=${ending}`, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const json = await response.json();
+        return JSON.stringify(json);
+      } catch (error) {
+        console.error('Ошибка:', error);
+      }
+    } else {
+      let shortDescription;
+      let fullDescription;
+      let obj = {
+        id,
         name: shortDescription,
         description: fullDescription,
-        status: false,
+        status,
       };
       try {
-        const response = await fetch('http://localhost:7070?method=createTicket', {
-          id: null,
+        shortDescription = this.parentElement.querySelector('.input-description').value;
+        fullDescription = this.parentElement.querySelector('.input-full-description').value;
+      } catch (err) {
+        obj = {
+          id,
+          status,
+        };
+      }
+      try {
+        const response = await fetch(`http://localhost:7070?method=${ending}`, {
           method: 'POST',
           body: JSON.stringify(obj),
           headers: {
@@ -45,20 +148,10 @@ export default class App {
           },
         });
         const json = await response.json();
-        console.log('Успех:', JSON.stringify(json));
       } catch (error) {
         console.error('Ошибка:', error);
       }
-    });
-  }
-
-  showChangePopup(e) {
-    if (!e.target.classList.contains('change-item')) return;
-    this.popupCreator.show('Изменить');
-  }
-
-  showDeletePopup(e) {
-    if (!e.target.classList.contains('delete-item')) return;
-    this.popupCreator.show('delete');
+    }
+    return null;
   }
 }
